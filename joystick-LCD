@@ -1,0 +1,84 @@
+#include <WiFi.h>
+#include <esp_now.h>
+#include <LiquidCrystal.h>
+
+uint8_t receiverMAC[] = {0x44,0x1D,0x64,0xF6,0xB5,0x78};
+
+esp_now_peer_info_t peerInfo;
+
+const int xPin = 36;
+
+int command = 0;
+int lastCommand = -1;
+
+LiquidCrystal lcd(26, 25, 17, 16, 27, 14);
+
+int centerX = 0; 
+const int DEADZONE = 200;
+int distance = 0;
+void OnDataRecv(const esp_now_recv_info *info, const uint8_t *data, int len){
+  memcpy(&distance, data, sizeof(distance));
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  if (esp_now_init() != ESP_OK) {
+    return;
+  }
+
+  esp_now_register_recv_cb(OnDataRecv);
+  memcpy(peerInfo.peer_addr, receiverMAC, 6);
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+  esp_now_add_peer(&peerInfo);
+
+  analogReadResolution(12);
+
+  long sum = 0;
+  for (int i = 0; i < 10; i++) {
+    sum += analogRead(xPin);
+    delay(5);
+  } 
+  centerX = sum / 10;
+
+  lcd.begin(16, 2);
+  lcd.setCursor(0,0);
+  lcd.print("Distance:");
+}
+
+void loop() {
+  int xValue = analogRead(xPin);
+
+  if (xValue < centerX - DEADZONE) {
+    command = 1;
+  }
+  else if (xValue > centerX + DEADZONE) {
+    command = 2;
+  }
+  else {
+    command = 0;
+  }
+
+  if (command != lastCommand) {
+    esp_now_send(receiverMAC, (uint8_t*)&command, sizeof(command));
+    lastCommand = command;
+  }
+
+  lcd.setCursor(0,1);
+  lcd.print("                ");
+  lcd.setCursor(0,1);
+  if (distance == -1){
+    lcd.print(0);
+  }
+  else{
+    lcd.print(distance);
+  }
+
+  lcd.print(" cm");
+
+  delay(100);
+  
+}
