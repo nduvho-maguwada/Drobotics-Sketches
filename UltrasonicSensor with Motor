@@ -1,0 +1,60 @@
+#include <WiFi.h>
+#include <esp_now.h>
+
+const int IN1 = 26;
+const int IN2 = 25;
+const int trigPin = 16;
+const int echoPin = 17;
+
+long duration;
+int distance;
+int threshhold = 50;
+
+uint8_t senderMAC[] = {0x44, 0x1D, 0x64, 0xF5, 0x82, 0xB4};
+
+esp_now_peer_info_t peerInfo = {};
+
+void sendDistance(int distance) {
+    esp_now_send(senderMAC, (uint8_t *)&distance, sizeof(distance));
+}
+
+void OnDataRecv(const esp_now_recv_info *info, const uint8_t *data, int len) {
+    int command;
+    memcpy(&command, data, sizeof(command));
+    digitalWrite(IN1, command == 1);
+    digitalWrite(IN2, command == 2 ? HIGH : LOW);
+}
+
+void setup() {
+    Serial.begin(115200);
+    pinMode(IN1, OUTPUT);
+    pinMode(IN2, OUTPUT);
+    pinMode(trigPin, OUTPUT);
+    pinMode(echoPin, INPUT);
+    WiFi.mode(WIFI_STA);
+    if (esp_now_init() != ESP_OK) return;
+    esp_now_register_recv_cb(OnDataRecv);
+    memcpy(peerInfo.peer_addr, senderMAC, 6);
+    peerInfo.channel = 0;
+    peerInfo.encrypt = false;
+    esp_now_add_peer(&peerInfo);
+}
+
+void loop() {
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
+    duration = pulseIn(echoPin, HIGH, 30000);
+    
+    distance = (int)(duration * 0.0343 / 2);
+    if (distance <= 0 || distance > 400) {
+        distance = -1;
+    }
+
+    Serial.println(distance);
+    sendDistance(distance);
+       
+    delay(2);
+}
