@@ -4,30 +4,33 @@
 
 uint8_t receiverMAC[] = {0x44,0x1D,0x64,0xF6,0xB5,0x78};
 
+struct Message {
+  int command;
+  int speed;
+};
+
+Message dataPacket;
+Message lastPacket;
+
 esp_now_peer_info_t peerInfo;
-
 const int xPin = 36;
-
-int command = 0;
-int lastCommand = -1;
-
 LiquidCrystal lcd(26, 25, 17, 16, 27, 14);
 
 int centerX = 0; 
 const int DEADZONE = 200;
 int distance = 0;
-void OnDataRecv(const esp_now_recv_info *info, const uint8_t *data, int len){
+
+const int buzzerPin = 12;
+
+void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *data, int len) {
   memcpy(&distance, data, sizeof(distance));
 }
 
 void setup() {
   Serial.begin(115200);
-
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
-  if (esp_now_init() != ESP_OK) {
-    return;
-  }
+  if (esp_now_init() != ESP_OK) return;
 
   esp_now_register_recv_cb(OnDataRecv);
   memcpy(peerInfo.peer_addr, receiverMAC, 6);
@@ -36,7 +39,6 @@ void setup() {
   esp_now_add_peer(&peerInfo);
 
   analogReadResolution(12);
-
   long sum = 0;
   for (int i = 0; i < 10; i++) {
     sum += analogRead(xPin);
@@ -47,38 +49,44 @@ void setup() {
   lcd.begin(16, 2);
   lcd.setCursor(0,0);
   lcd.print("Distance:");
+  pinMode(buzzerPin, OUTPUT);
 }
 
 void loop() {
   int xValue = analogRead(xPin);
 
   if (xValue < centerX - DEADZONE) {
-    command = 1;
+      dataPacket.command = 1;
+      dataPacket.speed = map(xValue, centerX - DEADZONE, 0, 0, 255);
   }
   else if (xValue > centerX + DEADZONE) {
-    command = 2;
+      dataPacket.command = 2;
+      dataPacket.speed = map(xValue, centerX + DEADZONE, 4095, 0, 255);
   }
   else {
-    command = 0;
+      dataPacket.command = 0;
+      dataPacket.speed = 0;
   }
 
-  if (command != lastCommand) {
-    esp_now_send(receiverMAC, (uint8_t*)&command, sizeof(command));
-    lastCommand = command;
+  dataPacket.speed = constrain(dataPacket.speed, 0, 255);
+
+  if (dataPacket.command != lastPacket.command || abs(dataPacket.speed - lastPacket.speed) > 2) {
+    esp_now_send(receiverMAC, (uint8_t*)&dataPacket, sizeof(dataPacket));
+    lastPacket = dataPacket;
   }
 
   lcd.setCursor(0,1);
   lcd.print("                ");
   lcd.setCursor(0,1);
-  if (distance == -1){
-    lcd.print(0);
+  if (distance == -1) lcd.print(0);
+  else lcd.print(distance);
+  if (distance <= 30){
+      digitalWrite(buzzerPin, HIGH);
+      delay(1000);
+      digitalWrite(buzzerPin, LOW);
+      delay(1000); 
   }
-  else{
-    lcd.print(distance);
-  }
-
   lcd.print(" cm");
 
-  delay(100);
-  
+  delay(1);
 }
