@@ -1,86 +1,24 @@
-const int SD_pinA = 1;
-const int IN_pinA = 2;
-const int SD_pinB = 3;
-const int IN_pinB = 4;
-const int SD_pinC = 5;
-const int IN_pinC = 6;
-
+const int pins[] = {2, 3, 4, 5, 6, 7};
 void setup() {
-  pinMode(SD_pinA, OUTPUT);
-  pinMode(IN_pinA,  OUTPUT);
-  pinMode(SD_pinB, OUTPUT);
-  pinMode(IN_pinB,  OUTPUT);
-  pinMode(SD_pinC, OUTPUT);
-  pinMode(IN_pinC,  OUTPUT);
+  for(int i=0; i<6; i++) pinMode(pins[i], OUTPUT);
 }
-                                                                                                          
+
+void step(int sA, int iA, int sB, int iB, int sC, int iC) {
+  digitalWrite(2, sA); 
+  digitalWrite(3, iA);
+  digitalWrite(4, sB); 
+  digitalWrite(5, iB);
+  digitalWrite(6, sC); 
+  digitalWrite(7, iC);
+  delayMicroseconds(400) 
+}
+
 void loop() {
-  // A - B
-digitalWrite(SD_pinA, HIGH);
-digitalWrite(IN_pinA, HIGH);
-
-digitalWrite(SD_pinB, HIGH);
-digitalWrite(IN_pinB, LOW);
-
-digitalWrite(SD_pinC, LOW);
-digitalWrite(IN_pinC, LOW);
-delay(0.4);
-
-// A - C
-digitalWrite(SD_pinA, HIGH);
-digitalWrite(IN_pinA, HIGH);
-
-digitalWrite(SD_pinC, HIGH);
-digitalWrite(IN_pinC, LOW);
-
-digitalWrite(SD_pinB, LOW);
-digitalWrite(IN_pinB, LOW);
-
-delay(0.4);
-
-// B - C
-digitalWrite(SD_pinB, HIGH);
-digitalWrite(IN_pinB, HIGH);
-
-digitalWrite(SD_pinC, HIGH);
-digitalWrite(IN_pinC, LOW);
-
-digitalWrite(SD_pinA, LOW);
-digitalWrite(IN_pinA, LOW);
-
-delay(0.4);
-
-// B - A
-digitalWrite(SD_pinB, HIGH);
-digitalWrite(IN_pinB, HIGH);
-
-digitalWrite(SD_pinA, HIGH);
-digitalWrite(IN_pinA, LOW);
-
-digitalWrite(SD_pinC, LOW);
-digitalWrite(IN_pinC, LOW);
-
-delay(0.4);
-
-//C - A
-digitalWrite(SD_pinC, HIGH);
-digitalWrite(IN_pinC, HIGH);
-
-digitalWrite(SD_pinA, HIGH);
-digitalWrite(IN_pinA, LOW);
-
-digitalWrite(SD_pinB, LOW);
-digitalWrite(IN_pinB, LOW);
-delay(0.4);
-
-//C - B
-digitalWrite(SD_pinC, HIGH);
-digitalWrite(IN_pinC, HIGH);
-
-digitalWrite(SD_pinB, HIGH);
-digitalWrite(IN_pinB, LOW);
-
-digitalWrite(SD_pinA, LOW);
-digitalWrite(IN_pinA, LOW);
-delay(0.4);
+  //   SD_A, IN_A, SD_B, IN_B, SD_C, IN_C
+  step(HIGH, HIGH,  HIGH, LOW,   LOW,  LOW);  // A+ B-
+  step(HIGH, HIGH,  LOW,  LOW,   HIGH, LOW);  // A+ C-
+  step(LOW,  LOW,   HIGH, HIGH,  HIGH, LOW);  // B+ C-
+  step(HIGH, LOW,   HIGH, HIGH,  LOW,  LOW);  // B+ A-
+  step(HIGH, LOW,   LOW,  LOW,   HIGH, HIGH); // C+ A-
+  step(LOW,  LOW,   HIGH, LOW,   HIGH, HIGH); // C+ B-
 }
