@@ -1,0 +1,40 @@
+#include <ESP32Servo.h>
+
+
+Servo myESC;
+const int potPin = 25; 
+const int escPin = 26; 
+int potValue = 0;
+int throttle = 0;
+
+void setup() {
+  Serial.begin(115200);
+  
+  ESP32PWM::allocateTimer(0);
+  myESC.setPeriodHertz(50); 
+  myESC.attach(escPin, 1000, 2000);
+
+
+  Serial.println("Starting Arming Sequence...");
+  Serial.println("Ensure Potentiometer is at 0!");
+  myESC.write(0);
+  delay(3000); 
+  
+  Serial.println("ESC Armed. You can now turn the knob.");
+}
+
+void loop() {
+
+  potValue = analogRead(potPin);
+
+  throttle = map(potValue, 0, 4095, 0, 180);
+  
+  myESC.write(throttle);
+  
+  Serial.print("Pot: ");
+  Serial.print(potValue);
+  Serial.print(" | Throttle: ");
+  Serial.println(throttle);
+  
+  delay(20);
+}
