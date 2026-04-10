@@ -1,0 +1,78 @@
+#include <WiFi.h>
+#include <esp_now.h>
+#include <ESP32Servo.h>
+
+// ESC objects
+Servo esc1;
+Servo esc2;
+Servo esc3;
+Servo esc4;
+
+// ESC pins
+const int escPin1 = 0;
+const int escPin2 = 1;
+const int escPin3 = 2;
+const int escPin4 = 3;
+
+typedef struct {
+  int throttle;
+} ControlData;
+
+ControlData incomingData;
+
+// ESC signal range
+const int minPulse = 1000;
+const int maxPulse = 2000;
+
+void onDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
+  memcpy(&incomingData, data, sizeof(incomingData));
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  WiFi.mode(WIFI_STA);
+
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("ESP-NOW Init Failed");
+    return;
+  }
+
+  esp_now_register_recv_cb(onDataRecv);
+
+  // Attach all ESCs
+  esc1.attach(escPin1, minPulse, maxPulse);
+  esc2.attach(escPin2, minPulse, maxPulse);
+  esc3.attach(escPin3, minPulse, maxPulse);
+  esc4.attach(escPin4, minPulse, maxPulse);
+
+  // ARM all ESCs
+  Serial.println("Arming ESCs...");
+  esc1.writeMicroseconds(1000);
+  esc2.writeMicroseconds(1000);
+  esc3.writeMicroseconds(1000);
+  esc4.writeMicroseconds(1000);
+
+  delay(3000);
+}
+
+void loop() {
+  int throttle = incomingData.throttle;
+
+  // Map joystick → ESC signal
+  int escSignal = map(throttle, 0, 4095, minPulse, maxPulse);
+  escSignal = constrain(escSignal, minPulse, maxPulse);
+
+  // Send same throttle to all motors
+  esc1.writeMicroseconds(escSignal);
+  esc2.writeMicroseconds(escSignal);
+  esc3.writeMicroseconds(escSignal);
+  esc4.writeMicroseconds(escSignal);
+
+  Serial.print("Throttle: ");
+  Serial.print(throttle);
+  Serial.print(" | ESC: ");
+  Serial.println(escSignal);
+
+  delay(20);
+}
