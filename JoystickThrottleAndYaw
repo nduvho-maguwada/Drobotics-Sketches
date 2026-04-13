@@ -1,0 +1,97 @@
+#include <WiFi.h>
+#include <esp_now.h>
+
+uint8_t receiverMAC[] = {0xA8, 0x46, 0x74, 0x46, 0x16, 0x24};
+
+typedef struct {
+  int throttle;   
+  int yaw;   
+} ControlData;
+
+ControlData data;
+
+const int joyY = 36;
+const int joyX = 39;
+
+int centerY = 0;
+int centerX = 0;
+
+int currentThrottle = 0;
+int throttleStep = 10;
+
+int currentYaw = 0;
+int yawStep = 5;
+
+void calibrate() {
+  long sumY = 0, sumX = 0;
+
+  for (int i = 0; i < 100; i++) {
+    sumY += analogRead(joyY);
+    sumX += analogRead(joyX);
+    delay(5);
+  }
+
+  centerY = sumY / 100;
+  centerX = sumX / 100;
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  WiFi.mode(WIFI_STA);
+  esp_now_init();
+
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(peerInfo.peer_addr, receiverMAC, 6);
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+
+  esp_now_add_peer(&peerInfo);
+
+  delay(2000);
+  calibrate();
+}
+
+void loop() {
+
+  int y = analogRead(joyY);
+  int diffY = y - centerY;
+
+  int targetThrottle = 0;
+
+  if (diffY > 150) {
+    targetThrottle = map(diffY, 150, 2000, 0, 1000);
+  }
+
+  targetThrottle = constrain(targetThrottle, 0, 1000);
+
+  if (currentThrottle < targetThrottle) currentThrottle += throttleStep;
+  if (currentThrottle > targetThrottle) currentThrottle -= throttleStep;
+
+  int x = analogRead(joyX);
+  int diffX = x - centerX;
+
+  int targetYaw = 0;
+
+  if (abs(diffX) > 120) {
+    targetYaw = map(diffX, -2000, 2000, -300, 300);
+  }
+
+  targetYaw = constrain(targetYaw, -300, 300);
+
+  if (currentYaw < targetYaw) currentYaw += yawStep;
+  if (currentYaw > targetYaw) currentYaw -= yawStep;
+
+  int yaw = currentYaw;
+
+  yaw = yaw * 0.8;
+
+  data.throttle = currentThrottle;
+  data.yaw = yaw;
+
+  esp_now_send(receiverMAC, (uint8_t *)&data, sizeof(data));
+
+  Serial.println(currentThrottle);
+
+  delay(20);
+}
