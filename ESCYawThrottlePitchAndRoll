@@ -1,0 +1,66 @@
+#include <WiFi.h>
+#include <esp_now.h>
+#include <ESP32Servo.h>
+
+Servo m1, m2, m3, m4;
+
+const int pin1 = 0;
+const int pin2 = 1;
+const int pin3 = 2;
+const int pin4 = 3;
+
+typedef struct {
+  int throttle;
+  int yaw;
+  int pitch;
+  int roll;
+} ControlData;
+
+ControlData data;
+
+const int MIN = 1000;
+const int MAX = 1500;
+
+void onReceive(const esp_now_recv_info_t *info, const uint8_t *incoming, int len) {
+  memcpy(&data, incoming, sizeof(data));
+}
+
+void setup() {
+  Serial.begin(115200);
+  WiFi.mode(WIFI_STA);
+  esp_now_init();
+  esp_now_register_recv_cb(onReceive);
+
+  m1.attach(pin1, MIN, MAX);
+  m2.attach(pin2, MIN, MAX);
+  m3.attach(pin3, MIN, MAX);
+  m4.attach(pin4, MIN, MAX);
+
+  m1.writeMicroseconds(1000);
+  m2.writeMicroseconds(1000);
+  m3.writeMicroseconds(1000);
+  m4.writeMicroseconds(1000);
+
+  delay(3000);
+}
+
+void loop() {
+  int base = map(data.throttle, 0, 1000, 1000, MAX);
+
+  int m1_val = base + data.pitch + data.roll + data.yaw;
+  int m2_val = base + data.pitch - data.roll - data.yaw;
+  int m3_val = base - data.pitch - data.roll + data.yaw;
+  int m4_val = base - data.pitch + data.roll - data.yaw;
+
+  m1_val = constrain(m1_val, MIN, MAX);
+  m2_val = constrain(m2_val, MIN, MAX);
+  m3_val = constrain(m3_val, MIN, MAX);
+  m4_val = constrain(m4_val, MIN, MAX);
+
+  m1.writeMicroseconds(m1_val);
+  m2.writeMicroseconds(m2_val);
+  m3.writeMicroseconds(m3_val);
+  m4.writeMicroseconds(m4_val);
+
+  delay(20);
+}
