@@ -1,0 +1,121 @@
+#include <WiFi.h>
+#include <esp_now.h>
+
+uint8_t receiverMAC[] = {0xA8, 0x46, 0x74, 0x46, 0x16, 0x24};
+
+typedef struct {
+  int throttle;
+  int yaw;
+  int pitch;
+  int roll;
+} ControlData;
+
+ControlData data;
+
+const int joyY1 = 36;
+const int joyX1 = 39;
+const int joyY2 = 34;
+const int joyX2 = 38;
+
+int cY1 = 0, cX1 = 0, cY2 = 0, cX2 = 0;
+
+int currentThrottle = 0;
+int currentYaw = 0;
+int currentPitch = 0;
+int currentRoll = 0;
+
+int tStep = 10;
+int yStep = 5;
+int pStep = 5;
+int rStep = 5;
+
+void calibrate() {
+  long sy1=0, sx1=0, sy2=0, sx2=0;
+
+  for (int i = 0; i < 100; i++) {
+    sy1 += analogRead(joyY1);
+    sx1 += analogRead(joyX1);
+    sy2 += analogRead(joyY2);
+    sx2 += analogRead(joyX2);
+    delay(5);
+  }
+
+  cY1 = sy1 / 100;
+  cX1 = sx1 / 100;
+  cY2 = sy2 / 100;
+  cX2 = sx2 / 100;
+}
+
+void setup() {
+  Serial.begin(115200);
+  WiFi.mode(WIFI_STA);
+  esp_now_init();
+
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(peerInfo.peer_addr, receiverMAC, 6);
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+
+  esp_now_add_peer(&peerInfo);
+
+  delay(2000);
+  calibrate();
+}
+
+void loop() {
+
+  int y1 = analogRead(joyY1);
+  int x1 = analogRead(joyX1);
+  int y2 = analogRead(joyY2);
+  int x2 = analogRead(joyX2);
+
+  int diffT = y1 - cY1;
+  int diffYaw = x1 - cX1;
+  int diffPitch = y2 - cY2;
+  int diffRoll = x2 - cX2;
+
+  int targetThrottle = 0;
+  if (diffT > 150) {
+    targetThrottle = map(diffT, 150, 2000, 0, 1000);
+  }
+  targetThrottle = constrain(targetThrottle, 0, 1000);
+
+  int targetYaw = 0;
+  if (abs(diffYaw) > 120) {
+    targetYaw = map(diffYaw, -2000, 2000, -300, 300);
+  }
+  targetYaw = constrain(targetYaw, -300, 300);
+
+  int targetPitch = 0;
+  if (abs(diffPitch) > 120) {
+    targetPitch = map(diffPitch, -2000, 2000, -300, 300);
+  }
+  targetPitch = constrain(targetPitch, -300, 300);
+
+  int targetRoll = 0;
+  if (abs(diffRoll) > 120) {
+    targetRoll = map(diffRoll, -2000, 2000, -300, 300);
+  }
+  targetRoll = constrain(targetRoll, -300, 300);
+
+  if (currentThrottle < targetThrottle) currentThrottle += tStep;
+  if (currentThrottle > targetThrottle) currentThrottle -= tStep;
+
+  if (currentYaw < targetYaw) currentYaw += yStep;
+  if (currentYaw > targetYaw) currentYaw -= yStep;
+
+  if (currentPitch < targetPitch) currentPitch += pStep;
+  if (currentPitch > targetPitch) currentPitch -= pStep;
+
+  if (currentRoll < targetRoll) currentRoll += rStep;
+  if (currentRoll > targetRoll) currentRoll -= rStep;
+
+  data.throttle = currentThrottle;
+  data.yaw = currentYaw;
+  data.pitch = currentPitch;
+  data.roll = currentRoll;
+
+  esp_now_send(receiverMAC, (uint8_t *)&data, sizeof(data));
+
+  delay(20);
+}
