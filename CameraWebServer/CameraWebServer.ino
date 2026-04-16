@@ -1,7 +1,8 @@
 #include <Arduino.h>
 #include "esp_camera.h"
 #include <WiFi.h>
-
+//http://10.0.0.21:81/stream
+//http://10.0.0.21:81/capture
 // ===========================
 // Select camera model in board_config.h
 // ===========================
