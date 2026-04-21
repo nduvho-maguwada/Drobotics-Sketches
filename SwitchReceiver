@@ -1,0 +1,59 @@
+#include <WiFi.h>
+#include <esp_now.h>
+
+const int PWMA = 25;
+const int AIN1 = 26;
+const int AIN2 = 27;
+const int STBY = 4;
+
+const int pwmFreq = 5000;
+const int pwmResolution = 8;
+
+struct Switch {
+  int command;
+};
+
+Switch incoming;
+
+void onReceive(const esp_now_recv_info *info, const uint8_t *data, int len) {
+  memcpy(&incoming, data, sizeof(incoming));
+  Serial.print("Received: ");
+  Serial.println(incoming.command);
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(AIN1, OUTPUT);
+  pinMode(AIN2, OUTPUT);
+  pinMode(STBY, OUTPUT);
+
+  digitalWrite(STBY, HIGH);
+
+  ledcAttach(PWMA, pwmFreq, pwmResolution);
+
+  WiFi.mode(WIFI_STA);
+
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("ESP-NOW init failed");
+    return;
+  }
+
+  esp_now_register_recv_cb(onReceive);
+}
+
+void loop() {
+  if (incoming.command == 1) {
+    digitalWrite(AIN1, HIGH);
+    digitalWrite(AIN2, LOW);
+    ledcWrite(PWMA, 200);
+  } else if (incoming.command == 2) {
+    digitalWrite(AIN1, LOW);
+    digitalWrite(AIN2, HIGH);
+    ledcWrite(PWMA, 200);
+  } else {
+    digitalWrite(AIN1, LOW);
+    digitalWrite(AIN2, LOW);
+    ledcWrite(PWMA, 0);
+  }
+}
