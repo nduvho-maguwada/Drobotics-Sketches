@@ -1,0 +1,96 @@
+#include <WiFi.h>
+#include <WebServer.h>
+#include <ESP32Servo.h>
+
+Servo panServo;
+Servo tiltServo;
+
+int panAngle = 90;
+int tiltAngle = 90;
+
+const char* ssid = "Yaqeen";
+const char* password = "L@v@ngee";
+
+WebServer server(80);
+
+const char htmlPage[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Control</title>
+  <style>
+    body { text-align:center; font-family:Arial; background:#111; color:white; }
+    input { width:80%; margin:20px; }
+  </style>
+</head>
+<body>
+  <h2>Servo Control</h2>
+
+  <p>Pan</p>
+  <input type="range" min="0" max="180" value="90" id="pan" oninput="send()">
+
+  <p>Tilt</p>
+  <input type="range" min="0" max="180" value="90" id="tilt" oninput="send()">
+
+<script>
+function send(){
+  let pan = document.getElementById('pan').value;
+  let tilt = document.getElementById('tilt').value;
+  fetch(`/move?pan=${pan}&tilt=${tilt}`);
+}
+</script>
+
+</body>
+</html>
+)rawliteral";
+
+
+void handleRoot() {
+  server.send_P(200, "text/html", htmlPage);
+}
+
+void handleMove() {
+  panAngle = server.arg("pan").toInt();
+  tiltAngle = server.arg("tilt").toInt();
+
+  Serial.print("Pan: ");
+  Serial.print(panAngle);
+  Serial.print(" Tilt: ");
+  Serial.println(tiltAngle);
+
+  panServo.write(panAngle);
+  tiltServo.write(tiltAngle);
+
+  server.send(200, "text/plain", "OK");
+}
+
+
+void setup() {
+  Serial.begin(115200);
+
+
+  panServo.attach(26);
+  tiltServo.attach(25);
+
+  panServo.write(90);
+  tiltServo.write(90);
+
+  WiFi.begin(ssid, password);
+
+  Serial.print("Connecting");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nConnected!");
+  Serial.println(WiFi.localIP());
+
+  server.on("/", handleRoot);
+  server.on("/move", handleMove);
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();
+}
