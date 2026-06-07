@@ -1,0 +1,77 @@
+#include <ESP32Servo.h>
+
+const int xPin = 4;       // Your verified joystick pin
+const int SERVO_PIN = 18;  // Pin for your 25kg servo
+
+Servo myServo;
+
+// Calibrated to your exact joystick readings
+int centerX = 1870;        
+const int DEADZONE = 150;  // Safe buffer zone around 1870 (1720 to 2020)
+int currentAngle = 90;     // Servo starts at 90 degrees
+
+void setup() {
+  Serial.begin(115200);
+
+  // Allocate hardware PWM timers for the ESP32-S3
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+
+  myServo.setPeriodHertz(50); 
+  myServo.attach(SERVO_PIN, 500, 2400); 
+  myServo.write(currentAngle); 
+
+  analogReadResolution(12);
+  Serial.println("Hardware Calibrated & Ready!");
+}
+
+void loop() {
+  int xValue = analogRead(xPin);
+
+  int command = 0;
+  int speed = 0;
+
+  // 1. Moving LEFT (Values drop below center toward 0)
+  if (xValue < (centerX - DEADZONE)) {
+      command = 1; 
+      // Map the deflection: closer to 0 means faster movement
+      speed = map(xValue, centerX - DEADZONE, 0, 1, 5); 
+  }
+  // 2. Moving RIGHT (Values rise above center toward 4095)
+  else if (xValue > (centerX + DEADZONE)) {
+      command = 2; 
+      // Map the deflection: closer to 4095 means faster movement
+      speed = map(xValue, centerX + DEADZONE, 4095, 1, 5); 
+  }
+  // 3. CENTERED (Inside the deadzone)
+  else {
+      command = 0; 
+      speed = 0;
+  }
+
+  // Apply the movement step to the current angle
+  if (command == 1) currentAngle -= speed; // Decrease angle (Move Left)
+  if (command == 2) currentAngle += speed; // Increase angle (Move Right)
+
+  // Keep the 25kg servo within safe mechanical limits
+  currentAngle = constrain(currentAngle, 0, 180);
+
+  // Send the position to the servo
+  myServo.write(currentAngle);
+
+  // Print tracking data when moving
+  if (command != 0) {
+    Serial.print("Joystick: ");
+    Serial.print(xValue);
+    Serial.print(" -> Direction: ");
+    Serial.print(command == 1 ? "LEFT" : "RIGHT");
+    Serial.print(" | Speed: ");
+    Serial.print(speed);
+    Serial.print(" | Servo Target: ");
+    Serial.println(currentAngle);
+  }
+
+  delay(20); // Paces the loop for smooth increments
+}
