@@ -1,0 +1,84 @@
+#include <esp_now.h>
+#include <WiFi.h>
+
+// On Wemos D1 R32, the physical pin labeled "D2" maps internally to GPIO 4.
+// If your joystick is plugged into "D2", leave this as 4.
+const int xPin = 39; 
+
+// Calibrated joystick readings
+int centerX = 1870;         
+const int DEADZONE = 150;  
+
+// MUST MATCH THE RECEIVER STRUCTURE EXACTLY
+typedef struct struct_message {
+    int command;
+    int speed;
+} struct_message;
+
+struct_message myData;
+
+// REPLACE WITH YOUR RECEIVER'S MAC ADDRESS (From Step 1)
+uint8_t broadcastAddress[] = {0xDC, 0xB4, 0xD9, 0x05, 0xBC, 0x80};
+
+esp_now_peer_info_t peerInfo;
+
+// FIX: Updated callback signature for newer ESP32 Board Managers (v3.x.x)
+void OnDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status) {
+  // Optional debugging printout
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+
+void setup() {
+  Serial.begin(115200);
+  
+  // Set ADC resolution to 12-bit (0-4095)
+  analogReadResolution(12);
+  
+  // Set device as a Wi-Fi Station
+  WiFi.mode(WIFI_STA);
+
+  // Initialize ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+
+  // Register the updated send callback
+  esp_now_register_send_cb(OnDataSent);
+  
+  // Register peer
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+  peerInfo.channel = 0;  
+  peerInfo.encrypt = false;
+  
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer");
+    return;
+  }
+  Serial.println("Wemos D1 R32 Transmitter Ready!");
+}
+
+void loop() {
+  int xValue = analogRead(xPin);
+
+  // Reset data defaults
+  myData.command = 0;
+  myData.speed = 0;
+
+  // 1. Moving LEFT
+  if (xValue < (centerX - DEADZONE)) {
+      myData.command = 1; 
+      myData.speed = map(xValue, centerX - DEADZONE, 0, 1, 5); 
+  }
+  // 2. Moving RIGHT
+  else if (xValue > (centerX + DEADZONE)) {
+      myData.command = 2; 
+      myData.speed = map(xValue, centerX + DEADZONE, 4095, 1, 5); 
+  }
+
+  // Send message via ESP-NOW
+  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
+  
+  // Paces data transmission to match your original timing
+  delay(20); 
+}
